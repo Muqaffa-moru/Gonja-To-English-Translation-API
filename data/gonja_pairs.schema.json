@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gonja-English pair",
+  "description": "One line of gonja_pairs.jsonl",
+  "type": "object",
+  "required": [
+    "id",
+    "en",
+    "gjn",
+    "contributor",
+    "consent",
+    "verified",
+    "created_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "en": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "gjn": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "contributor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "consent": {
+      "const": true
+    },
+    "verified": {
+      "type": "boolean"
+    },
+    "reviewer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "verified_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "original_gjn": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Gonja text before a reviewer corrected it"
+    },
+    "rejected": {
+      "type": "boolean",
+      "description": "true = reviewer said the pair is wrong; excluded everywhere"
+    },
+    "source": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Where the pair came from (null = written by a speaker)"
+    }
+  },
+  "additionalProperties": false
+}

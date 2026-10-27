@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Help build a Gonja translator</title>
+<style>
+  :root{--bg:#f6f5f1;--card:#fff;--ink:#1d1d1b;--mute:#6b6a64;--line:#e2e0d8;--ok:#1d7a4d;--bad:#b3261e;--accent:#1f4fd8}
+  @media (prefers-color-scheme:dark){:root{--bg:#161614;--card:#212120;--ink:#f1f0ea;--mute:#a09f97;--line:#363633;--ok:#4cc38a;--bad:#f2766d;--accent:#7da2ff}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:84px}
+  .wrap{max-width:640px;margin:0 auto;padding:16px}
+  h1{font-size:22px;margin:8px 0 4px} h2{font-size:17px;margin:0 0 8px}
+  .sub{color:var(--mute);font-size:14px;margin:0 0 12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+  label{display:block;font-size:13px;color:var(--mute);margin:12px 0 4px}
+  input[type=text],textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px}
+  textarea{min-height:46px;resize:vertical}
+  .check{display:flex;gap:10px;align-items:flex-start;color:var(--ink);font-size:14px;margin-top:14px}
+  .check input{margin-top:4px;width:18px;height:18px;flex:none}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:99px;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip small{opacity:.75}
+  .item{padding:12px 0;border-top:1px solid var(--line)} .item:first-child{border-top:0}
+  .en{font-size:18px;margin:0 0 6px;overflow-wrap:anywhere}
+  .more1{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;padding:6px 0;cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border:0;border-radius:12px;padding:13px 18px;font:inherit;font-weight:600;cursor:pointer}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;width:100%;cursor:pointer;margin-top:10px}
+  button:disabled{opacity:.5;cursor:default}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+  .bar span{font-size:14px;color:var(--mute)}
+  .warn{background:#fff3cd;color:#5c4400;border-radius:12px;padding:12px;font-size:14px;margin-bottom:14px}
+  .hp{position:absolute;left:-9999px;height:0;overflow:hidden}
+  #toast{position:fixed;left:16px;right:16px;bottom:84px;max-width:608px;margin:0 auto;padding:12px 14px;border-radius:12px;background:var(--ink);color:var(--bg);display:none;font-size:14px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Help build a Gonja translator 🇬🇭</h1>
+  <p class="sub">Gonja is not supported by any translation tool yet. You can change that: translate as many of these English sentences as you can. Even 10 helps.</p>
+  <div id="cfgWarn" class="warn hide">This page is not connected yet: the owner must paste the web app address into the file (see SETUP.md).</div>
+
+  <section class="card">
+    <h2>1. About you</h2>
+    <label for="name">Your name (you will be credited as a contributor)</label>
+    <input type="text" id="name" maxlength="60" autocomplete="name" placeholder="e.g. Ama Mensah, or write anonymous">
+    <label for="code">Access code (only if you were given one)</label>
+    <input type="text" id="code" maxlength="60" autocomplete="off">
+    <label class="check"><input type="checkbox" id="consent">
+      <span>I agree that my translations will be stored and used to train a Gonja translation tool, and that my name will be credited as a contributor.</span></label>
+    <div class="hp" aria-hidden="true"><label>Website <input type="text" id="website" tabindex="-1" autocomplete="off"></label></div>
+  </section>
+
+  <section class="card">
+    <h2>2. Pick a topic</h2>
+    <div id="topics" class="chips"></div>
+  </section>
+
+  <section class="card hide" id="stepC">
+    <h2 id="topicTitle"></h2>
+    <p class="sub">Translate the <b>meaning</b>, the way you would naturally say it. Spell Gonja the way you normally write it. If you are not sure, leave it blank. Please do not use translation tools or AI.</p>
+    <div id="list"></div>
+    <button class="ghost" id="more">Show more sentences</button>
+  </section>
+</div>
+
+<div class="bar"><span id="count">0 answers ready</span><button class="primary" id="save">Save my answers</button></div>
+<div id="toast"></div>
+
+<script>
+const ENDPOINT = "PASTE_YOUR_WEB_APP_URL_HERE";
+const PROMPTS = __PROMPTS_JSON__;
+const PAGE = 12, MAX_ITEMS = 100;
+
+// ===== PURE LOGIC START (tested in Node) =====
+function normKey(s) { return String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); }
+
+function orderPrompts(list, counts) {
+  return list
+    .map((p, i) => ({ p, i, n: (p.have || 0) + (counts[normKey(p.english)] || 0) }))
+    .sort((a, b) => a.n - b.n || a.i - b.i)
+    .map((x) => x.p);
+}
+
+function filledItems(answers, topicOf) {
+  const out = [];
+  Object.keys(answers).forEach((en) => {
+    (answers[en] || []).forEach((t) => {
+      const g = String(t || "").replace(/\s+/g, " ").trim();
+      if (g) out.push({ topic: topicOf[en] || "", english: en, gonja: g });
+    });
+  });
+  return out;
+}
+
+function validateSubmission(s, items) {
+  if (!String(s.name || "").trim()) return "Please enter your name first.";
+  if (String(s.name).trim().length > 60) return "Your name is too long (60 characters maximum).";
+  if (!s.consent) return "Please tick the consent box.";
+  if (!items.length) return "Type at least one Gonja translation first.";
+  const same = items.find((it) => normKey(it.gonja) === normKey(it.english));
+  if (same) return "One answer is the same as the English: \"" + same.english + "\". Please translate it or clear it.";
+  const long = items.find((it) => it.gonja.length > 500);
+  if (long) return "One answer is too long (500 characters maximum).";
+  return "";
+}
+
+function buildPayload(s, items, batchId) {
+  return {
+    contributor: String(s.name).trim(),
+    accessCode: String(s.code || "").trim(),
+    consent: true,
+    batchId: batchId,
+    website: String(s.website || ""),
+    items: items.slice(0, MAX_ITEMS),
+  };
+}
+
+function newBatchId() {
+  try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  return "b" + Date.now().toString(16) + Math.random().toString(16).slice(2, 12);
+}
+// ===== PURE LOGIC END =====
+
+const $ = (id) => document.getElementById(id);
+const topicOf = {}; PROMPTS.forEach((p) => { topicOf[p.english] = p.topic; });
+const topics = []; PROMPTS.forEach((p) => { if (topics.indexOf(p.topic) < 0) topics.push(p.topic); });
+const state = { name: "", code: "", consent: false, website: "", topic: null, answers: {}, done: {}, counts: {}, shown: PAGE, saved: 0, busy: false };
+
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.h); toast.h = setTimeout(() => { t.style.display = "none"; }, 4500); }
+function label(t) { return t.replace(/_/g, " "); }
+
+function needing(topic) {
+  return PROMPTS.filter((p) => p.topic === topic && !state.done[p.english] &&
+    ((p.have || 0) + (state.counts[normKey(p.english)] || 0)) === 0).length;
+}
+
+function renderTopics() {
+  const box = $("topics"); box.textContent = "";
+  topics.forEach((t) => {
+    const b = document.createElement("button");
+    b.className = "chip" + (state.topic === t ? " on" : "");
+    b.appendChild(document.createTextNode(label(t) + " "));
+    const s = document.createElement("small"); s.textContent = "(" + needing(t) + " needed)"; b.appendChild(s);
+    b.onclick = () => { state.topic = t; state.shown = PAGE; renderTopics(); renderList(); };
+    box.appendChild(b);
+  });
+}
+
+function renderList() {
+  if (!state.topic) { $("stepC").classList.add("hide"); return; }
+  $("stepC").classList.remove("hide");
+  $("topicTitle").textContent = "3. Translate: " + label(state.topic);
+  const all = orderPrompts(PROMPTS.filter((p) => p.topic === state.topic && !state.done[p.english]), state.counts);
+  const list = $("list"); list.textContent = "";
+  all.slice(0, state.shown).forEach((p) => {
+    const row = document.createElement("div"); row.className = "item";
+    const en = document.createElement("p"); en.className = "en"; en.textContent = p.english; row.appendChild(en);
+    const holder = document.createElement("div"); row.appendChild(holder);
+    const arr = state.answers[p.english] || (state.answers[p.english] = [""]);
+    const addBox = (idx) => {
+      const ta = document.createElement("textarea"); ta.rows = 1; ta.placeholder = "Gonja";
+      ta.value = arr[idx] || "";
+      ta.oninput = () => { arr[idx] = ta.value; updateCount(); saveDraft(); };
+      holder.appendChild(ta);
+    };
+    arr.forEach((_, i) => addBox(i));
+    const more = document.createElement("button"); more.className = "more1"; more.textContent = "+ another way to say it";
+    more.onclick = () => { arr.push(""); addBox(arr.length - 1); };
+    row.appendChild(more);
+    list.appendChild(row);
+  });
+  $("more").classList.toggle("hide", all.length <= state.shown);
+  updateCount();
+}
+
+function currentItems() { return filledItems(state.answers, topicOf); }
+function updateCount() { const n = currentItems().length; $("count").textContent = n + (n === 1 ? " answer ready" : " answers ready") + (state.saved ? " · " + state.saved + " saved" : ""); }
+function saveDraft() { clearTimeout(saveDraft.h); saveDraft.h = setTimeout(() => store("gonja_draft_v1", JSON.stringify({ name: $("name").value, answers: state.answers })), 400); }
+function readForm() { state.name = $("name").value; state.code = $("code").value; state.consent = $("consent").checked; state.website = $("website").value; }
+
+async function onSave() {
+  if (state.busy) return;
+  readForm();
+  const items = currentItems();
+  const err = validateSubmission(state, items);
+  if (err) { toast(err); return; }
+  state.busy = true; $("save").disabled = true;
+  const payload = buildPayload(state, items, newBatchId());
+  try {
+    const res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
+    const body = await res.json();
+    if (!body.ok) throw new Error(body.error || "Could not save.");
+    payload.items.forEach((it) => {
+      const arr = state.answers[it.english] || [];
+      const i = arr.findIndex((t) => String(t).replace(/\s+/g, " ").trim() === it.gonja);
+      if (i >= 0) arr[i] = "";
+      state.done[it.english] = true;
+      state.counts[normKey(it.english)] = (state.counts[normKey(it.english)] || 0) + 1;
+    });
+    state.saved += payload.items.length;
+    store("gonja_name", state.name.trim());
+    toast("Thank you! " + payload.items.length + " saved. " + (items.length > MAX_ITEMS ? "Press Save again for the rest." : "Pick another sentence or topic."));
+    renderTopics(); renderList(); saveDraft();
+  } catch (e) {
+    toast((e && e.message ? e.message : "Could not reach the server") + " Your answers are still here, try again.");
+  } finally { state.busy = false; $("save").disabled = false; }
+}
+
+async function loadCounts() {
+  try { const r = await fetch(ENDPOINT); const b = await r.json(); if (b && b.ok) { state.counts = b.counts || {}; renderTopics(); renderList(); } } catch (e) {}
+}
+
+$("save").onclick = onSave;
+$("more").onclick = () => { state.shown += PAGE; renderList(); };
+$("name").addEventListener("input", saveDraft);
+$("name").value = load("gonja_name");
+try { const d = JSON.parse(load("gonja_draft_v1") || "null"); if (d) { if (d.name && !$("name").value) $("name").value = d.name; state.answers = d.answers || {}; } } catch (e) {}
+if (ENDPOINT.indexOf("PASTE_") === 0) { $("cfgWarn").classList.remove("hide"); }
+renderTopics(); renderList();
+if (ENDPOINT.indexOf("PASTE_") !== 0) loadCounts();
+</script>
+</body>
+</html>

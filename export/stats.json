@@ -1,0 +1,17 @@
+{
+  "unverified_included": false,
+  "pairs": {
+    "train": 78,
+    "validation": 6,
+    "test": 11
+  },
+  "total_pairs": 95,
+  "unique_english": 95,
+  "dropped": 0,
+  "corrected_by_reviewer": 9,
+  "contributors": 1,
+  "reviewers": 1,
+  "avg_chars_en": 15.0,
+  "avg_chars_gjn": 12.8,
+  "dropped_reasons": {}
+}

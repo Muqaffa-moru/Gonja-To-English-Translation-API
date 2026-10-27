@@ -1,0 +1,5 @@
+.env
+venv/
+__pycache__/
+data/gonja_pairs.jsonl
+rejects.csv
